@@ -1,0 +1,3 @@
+export nnUNet_preprocessed=/work/10572/tmudali/vista/total_cimgseg/transformed_dataset/preprocessed
+export nnUNet_raw=/work/10572/tmudali/vista/total_cimgseg/transformed_dataset/raw
+export nnUNet_results=/work/10572/tmudali/vista/total_cimgseg/transformed_dataset/results
