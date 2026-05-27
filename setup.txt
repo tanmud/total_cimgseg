@@ -1,3 +1,6 @@
 export nnUNet_preprocessed=/work/10572/tmudali/vista/totalseg_cimgseg/transdata/preprocessed
 export nnUNet_raw=/work/10572/tmudali/vista/totalseg_cimgseg/transdata/raw
 export nnUNet_results=/work/10572/tmudali/vista/totalseg_cimgseg/transdata/results
+
+export TOTALSEG_HOME_DIR=/work/10572/tmudali/vista/totalseg_cimgseg
+export TOTALSEG_WEIGHTS_PATH=/work/10572/tmudali/vista/totalseg_cimgseg/weights
