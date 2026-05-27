@@ -1,50 +1,84 @@
+#! /usr/bin/env python3
 import os
-import shutil
 import random
 import json
 from pathlib import Path
 
-# ── CONFIG ──────────────────────────────────────────────────────────────────
+import nibabel as nib
+import numpy as np
+
+# ── CONFIG ───────────────────────────────────────────────────────────────────
 RAW_DATA_DIR = Path("/work/10572/tmudali/vista/carecomp/dataset")
 NNUNET_RAW   = Path(os.environ["nnUNet_raw"])
 SEED         = 42
-TEST_RATIO   = 0.2   # 20% held out as test set
+TEST_RATIO   = 0.2
 
-# Folder → (modality, dataset_id, dataset_name)
 FOLDER_MAP = {
-    "A ct_train":    ("CT",  "Dataset001_CARE_CT"),
-    "B ct_train":    ("CT",  "Dataset001_CARE_CT"),
-    "G ct_train":    ("CT",  "Dataset001_CARE_CT"),
+    "A ct_train":       ("CT",  "Dataset001_CARE_CT"),
+    "B ct_train":       ("CT",  "Dataset001_CARE_CT"),
+    "G ct_train":       ("CT",  "Dataset001_CARE_CT"),
     "C and D mr_train": ("MRI", "Dataset002_CARE_MR"),
-    "E mr_train":    ("MRI", "Dataset002_CARE_MR"),
+    "E mr_train":       ("MRI", "Dataset002_CARE_MR"),
 }
+
+LABEL_REMAP = {205: 1, 420: 2, 500: 3, 550: 4, 600: 5, 820: 6, 850: 7}
 
 DATASET_META = {
     "Dataset001_CARE_CT": {
         "channel_names": {"0": "CT"},
-        "labels": {"background": 0, "target": 1},
+        "labels": {
+            "background":                     0,
+            "myocardium_left_ventricle":      1,
+            "left_atrium":                    2,
+            "left_ventricle_blood_cavity":    3,
+            "right_atrium":                   4,
+            "right_ventricle_blood_cavity":   5,
+            "ascending_aorta":                6,
+            "pulmonary_artery":               7,
+        },
         "file_ending": ".nii.gz",
     },
     "Dataset002_CARE_MR": {
         "channel_names": {"0": "MRI"},
-        "labels": {"background": 0, "target": 1},
+        "labels": {
+            "background":                     0,
+            "myocardium_left_ventricle":      1,
+            "left_atrium":                    2,
+            "left_ventricle_blood_cavity":    3,
+            "right_atrium":                   4,
+            "right_ventricle_blood_cavity":   5,
+            "ascending_aorta":                6,
+            "pulmonary_artery":               7,
+        },
         "file_ending": ".nii.gz",
     },
 }
 
-# ── COLLECT ALL CASES PER DATASET ───────────────────────────────────────────
+# ── HELPERS ──────────────────────────────────────────────────────────────────
+def copy_image(src, dst):
+    import shutil
+    shutil.copy(src, dst)
+
+def remap_and_save_label(src_path, dst_path):
+    img = nib.load(src_path)
+    arr = np.array(img.dataobj, dtype=np.int16)
+    new_arr = np.zeros_like(arr)
+    for old_val, new_val in LABEL_REMAP.items():
+        new_arr[arr == old_val] = new_val
+    nib.save(nib.Nifti1Image(new_arr, img.affine, img.header), dst_path)
+
+# ── COLLECT CASES ────────────────────────────────────────────────────────────
 dataset_cases = {"Dataset001_CARE_CT": [], "Dataset002_CARE_MR": []}
 
 for folder_name, (modality, dataset_name) in FOLDER_MAP.items():
     folder = RAW_DATA_DIR / folder_name
-    images = sorted(folder.glob("*_image.nii.gz"))
-    for img_path in images:
-        case_id = img_path.name.replace("_image.nii.gz", "")
+    for img_path in sorted(folder.glob("*_image.nii.gz")):
+        case_id  = img_path.name.replace("_image.nii.gz", "")
         lbl_path = folder / f"{case_id}_label.nii.gz"
         assert lbl_path.exists(), f"Missing label for {case_id}"
         dataset_cases[dataset_name].append((case_id, img_path, lbl_path))
 
-# ── SPLIT AND COPY ───────────────────────────────────────────────────────────
+# ── SPLIT, COPY, REMAP ───────────────────────────────────────────────────────
 for dataset_name, cases in dataset_cases.items():
     out_dir = NNUNET_RAW / dataset_name
     for split in ["imagesTr", "labelsTr", "imagesTs", "labelsTs"]:
@@ -53,31 +87,33 @@ for dataset_name, cases in dataset_cases.items():
     random.seed(SEED)
     shuffled = cases.copy()
     random.shuffle(shuffled)
-    n_test = max(1, int(len(shuffled) * TEST_RATIO))
+    n_test      = max(1, int(len(shuffled) * TEST_RATIO))
     test_cases  = shuffled[:n_test]
     train_cases = shuffled[n_test:]
 
+    print(f"\n{dataset_name}: {len(train_cases)} train / {len(test_cases)} test")
+
     for case_id, img_path, lbl_path in train_cases:
-        shutil.copy(img_path, out_dir / "imagesTr" / f"{case_id}_0000.nii.gz")
-        shutil.copy(lbl_path, out_dir / "labelsTr" / f"{case_id}.nii.gz")
+        copy_image(img_path,  out_dir / "imagesTr" / f"{case_id}_0000.nii.gz")
+        remap_and_save_label(lbl_path, out_dir / "labelsTr" / f"{case_id}.nii.gz")
+        print(f"  [train] {case_id}")
 
     for case_id, img_path, lbl_path in test_cases:
-        shutil.copy(img_path, out_dir / "imagesTs" / f"{case_id}_0000.nii.gz")
-        shutil.copy(lbl_path, out_dir / "labelsTs" / f"{case_id}.nii.gz")  # keep for eval
+        copy_image(img_path,  out_dir / "imagesTs" / f"{case_id}_0000.nii.gz")
+        remap_and_save_label(lbl_path, out_dir / "labelsTs" / f"{case_id}.nii.gz")
+        print(f"  [test]  {case_id}")
 
-    # ── dataset.json ────────────────────────────────────────────────────────
+    # ── dataset.json ─────────────────────────────────────────────────────────
     meta = DATASET_META[dataset_name]
     dataset_json = {
         "channel_names": meta["channel_names"],
-        "labels": meta["labels"],
-        "numTraining": len(train_cases),
-        "file_ending": meta["file_ending"],
+        "labels":        meta["labels"],
+        "numTraining":   len(train_cases),
+        "file_ending":   meta["file_ending"],
     }
     with open(out_dir / "dataset.json", "w") as f:
         json.dump(dataset_json, f, indent=2)
 
-    print(f"{dataset_name}: {len(train_cases)} train, {len(test_cases)} test")
-
-print("Done! Now run:")
+print("\n✅ Done! Now run:")
 print("  nnUNetv2_plan_and_preprocess -d 001 --verify_dataset_integrity")
 print("  nnUNetv2_plan_and_preprocess -d 002 --verify_dataset_integrity")
