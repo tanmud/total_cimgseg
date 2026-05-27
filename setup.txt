@@ -4,3 +4,5 @@ export nnUNet_results=/work/10572/tmudali/vista/totalseg_cimgseg/transdata/resul
 
 export TOTALSEG_HOME_DIR=/work/10572/tmudali/vista/totalseg_cimgseg
 export TOTALSEG_WEIGHTS_PATH=/work/10572/tmudali/vista/totalseg_cimgseg/weights
+export WEIGHTS=/work/10572/tmudali/vista/totalseg_cimgseg/weights/Dataset293_TotalSegmentator_part3_cardiac_1559subj/nnUNetTrainerNoMirroring__nnUNetPlans__3d_fullres/fold_0/checkpoint_final.pth
+export MR_WEIGHTS=/work/10572/tmudali/vista/totalseg_cimgseg/weights/Dataset850_TotalSegMRI_part1_organs_1088subj/nnUNetTrainer_2000epochs_NoMirroring__nnUNetPlans__3d_fullres/fold_0/checkpoint_final.pth
